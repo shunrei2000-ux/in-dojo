@@ -264,6 +264,7 @@ function scheduleStep(n,t){
   if(note!==null) keys(note,t,stepDur*7,0.2);
 }
 function tick(){
+  if(ctx.state!=='running'){ try{ ctx.resume(); }catch(_){} }
   while(nextTime<ctx.currentTime+0.12){
     if(nextStep>=totalSteps){ finish(); return; }
     scheduleStep(nextStep,nextTime); nextStep++; nextTime+=stepDur;
@@ -316,6 +317,7 @@ function startRec(){
   if(!SR){ useTyped('このブラウザは音声入力に対応していません。'); return; }
   rec=new SR(); rec.lang='ja-JP'; rec.continuous=true; rec.interimResults=true;
   recBase=''; recFin='';
+  rec.onaudiostart=()=>{ if(micReady){ const f=micReady; micReady=null; f(); } };
   rec.onresult=e=>{
     let fin='',inter='';
     for(let i=0;i<e.results.length;i++){ if(e.results[i].isFinal) fin+=e.results[i][0].transcript; else inter+=e.results[i][0].transcript; }
@@ -324,6 +326,7 @@ function startRec(){
   rec.onerror=e=>{
     if(e.error==='not-allowed'||e.error==='service-not-allowed'||e.error==='audio-capture'){
       useTyped('マイクが使えませんでした。ブラウザのマイク許可を確認してください。');
+      if(micReady){ const f=micReady; micReady=null; f(); }
     }
   };
   rec.onend=()=>{ recBase+=recFin; recFin=''; if(running&&!typedMode){ try{rec.start();}catch(_){} } };
@@ -338,7 +341,8 @@ function useTyped(msg){
 $('typedIn').addEventListener('input',e=>{ if(running&&typedMode) feed(e.target.value,0); });
 
 /* ---------- 進行 ---------- */
-let starting=false;
+let starting=false, micReady=null;
+document.addEventListener('pointerdown',()=>{ if(ctx&&ctx.state!=='running'){ try{ ctx.resume(); }catch(_){} } });
 function start(){
   if(starting) return;
   // 毎回新しく音の出口を作り直す（前回のマイク使用で止まったままになるのを防ぐ）
@@ -366,11 +370,22 @@ function start(){
     revSend=ctx.createGain(); revSend.gain.value=0.55; revSend.connect(conv).connect(revLp).connect(master);
   }
   saveRecord(); clearSheet(); pat=genPattern();
-  starting=true; goBtn.disabled=true;
-  const go=()=>{ if(!starting) return; starting=false; goBtn.disabled=false; begin(); };
-  let pr; try{ pr=ctx.resume(); }catch(_){}
-  if(pr&&pr.then) pr.then(go,go);
-  setTimeout(go,800);
+  starting=true; goBtn.disabled=true; inCount=true; skip=0;
+  statusEl.textContent='準備中…';
+  try{ ctx.resume(); }catch(_){}
+  // 先にマイクを開き、音の出力先の切り替わりが落ち着いてからビートを始める
+  const go=()=>{
+    if(!starting) return; starting=false; micReady=null;
+    const fire=()=>{ if(fired) return; fired=true; goBtn.disabled=false; begin(); };
+    let fired=false, pr; try{ pr=ctx.resume(); }catch(_){}
+    if(pr&&pr.then) pr.then(fire,fire);
+    setTimeout(fire,600);
+  };
+  if(typedMode){ go(); return; }
+  micReady=()=>setTimeout(go,350);
+  startRec();
+  if(typedMode){ go(); return; }
+  setTimeout(go,1800);
 }
 function begin(){
   bpm=70+Math.floor(Math.random()*41); $('beatinfo').textContent='BPM '+bpm+' ・ Aマイナー';
@@ -380,7 +395,7 @@ function begin(){
   goBtn.textContent='止める'; goBtn.classList.add('on');
   $('typedIn').value=''; $('bars').disabled=true; $('shuffle').disabled=true;
   statusEl.textContent='カウントのあとに始まります。';
-  if(typedMode) $('typedIn').focus(); else startRec();
+  if(typedMode) $('typedIn').focus();
   timer=setInterval(tick,25); tick();
 }
 function stop(msg){
