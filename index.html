@@ -165,7 +165,7 @@ const $=id=>document.getElementById(id);
 const linesEl=$('lines'), statusEl=$('status'), goBtn=$('go'), countEl=$('count');
 let words=[], lens=new Array(ROWS*3+1).fill(0), text='', isExample=true;
 let bpm=85, bars=2, running=false, typedMode=false;
-let ctx=null, analyser=null, master=null, noiseBuf=null, timer=null;
+let ctx=null, analyser=null, master=null, noiseBuf=null, timer=null, bassBus=null, revSend=null;
 let tStart=0, t0=0, stepDur=0, nextStep=0, nextTime=0, totalSteps=0;
 let pat=null;
 
@@ -205,41 +205,62 @@ function clearSheet(){
 /* ---------- ビートの自動生成 ---------- */
 function genPattern(){
   const kicks=[[0,6,10],[0,3,8,11],[0,7,8,14],[0,10]];
-  const progs=[[0,0,-4,-2],[0,-2,-4,-5],[0,3,-2,-4],[0,0,5,3]];
+  // [ルートのずれ, マイナーか] Aマイナーの泣ける進行
+  const progs=[[[0,1],[-4,0],[3,0],[-2,0]],[[0,1],[-4,0],[-2,0],[-5,1]],[[-4,0],[-2,0],[0,1],[0,1]],[[0,1],[5,1],[-4,0],[-2,0]]];
   const scale=[0,3,5,7,10,12,15];
   const mel=[]; let i=Math.floor(Math.random()*4)+1;
   for(let s=0;s<32;s++){
-    const strong=s%4===0, p=strong?0.8:(s%2===0?0.4:0.12);
+    const strong=s%4===0, p=strong?0.6:(s%2===0?0.22:0.05);
     if(Math.random()<p){
       i=Math.max(0,Math.min(scale.length-1,i+Math.floor(Math.random()*5)-2));
-      mel.push(69+scale[i]);
+      mel.push(57+scale[i]);
     }else mel.push(null);
   }
-  if(mel[0]===null) mel[0]=69+scale[2];
+  if(mel[0]===null) mel[0]=57+scale[2];
   return {kick:kicks[Math.floor(Math.random()*kicks.length)],prog:progs[Math.floor(Math.random()*progs.length)],mel};
 }
 const hz=m=>440*Math.pow(2,(m-69)/12);
-function env(g,t,peak,dur){g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(peak,t+0.005);g.gain.exponentialRampToValueAtTime(0.0001,t+dur);}
-function tone(type,f,t,peak,dur,f2){
-  const o=ctx.createOscillator(),g=ctx.createGain();o.type=type;o.frequency.setValueAtTime(f,t);
-  if(f2) o.frequency.exponentialRampToValueAtTime(f2,t+dur*0.6);
-  env(g,t,peak,dur);o.connect(g).connect(master);o.start(t);o.stop(t+dur+0.05);
+function env(g,t,peak,dur,att){g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(peak,t+(att||0.005));g.gain.exponentialRampToValueAtTime(0.0001,t+dur);}
+function osc(type,f,t,dur,detune,dest){
+  const o=ctx.createOscillator();o.type=type;o.frequency.setValueAtTime(f,t);if(detune)o.detune.value=detune;
+  o.connect(dest);o.start(t);o.stop(t+dur+0.1);return o;
 }
-function noise(t,peak,dur,type,freq){
+function kick(t){
+  const g=ctx.createGain();env(g,t,1,0.34);g.connect(master);
+  const o=osc('sine',110,t,0.34,0,g);o.frequency.exponentialRampToValueAtTime(38,t+0.12);
+}
+function bass808(m,t,dur){
+  const g=ctx.createGain();env(g,t,0.85,dur,0.01);g.connect(bassBus);
+  const f=hz(m),o=osc('sine',f*1.6,t,dur,0,g);o.frequency.exponentialRampToValueAtTime(f,t+0.05);
+  const g2=ctx.createGain();env(g2,t,0.1,dur*0.7,0.01);g2.connect(master);osc('triangle',f*2,t,dur,0,g2);
+}
+function keys(m,t,dur,peak){
+  const f=ctx.createBiquadFilter();f.type='lowpass';f.frequency.setValueAtTime(1400,t);f.frequency.exponentialRampToValueAtTime(500,t+dur);
+  const g=ctx.createGain();env(g,t,peak,dur,0.02);f.connect(g);g.connect(master);g.connect(revSend);
+  osc('triangle',hz(m),t,dur,-7,f);osc('sine',hz(m),t,dur,7,f);
+}
+function pad(notes,t,dur){
+  const f=ctx.createBiquadFilter();f.type='lowpass';f.frequency.value=650;
+  const g=ctx.createGain();g.gain.setValueAtTime(0.0001,t);g.gain.linearRampToValueAtTime(0.05,t+dur*0.3);
+  g.gain.setValueAtTime(0.05,t+dur*0.8);g.gain.linearRampToValueAtTime(0.0001,t+dur+0.3);
+  f.connect(g);g.connect(master);g.connect(revSend);
+  notes.forEach(m=>{osc('sawtooth',hz(m),t,dur+0.3,-9,f);osc('sawtooth',hz(m),t,dur+0.3,9,f);});
+}
+function noise(t,peak,dur,type,freq,wet){
   const s=ctx.createBufferSource(),f=ctx.createBiquadFilter(),g=ctx.createGain();
   s.buffer=noiseBuf;f.type=type;f.frequency.value=freq;env(g,t,peak,dur);
-  s.connect(f).connect(g).connect(master);s.start(t);s.stop(t+dur+0.05);
+  s.connect(f).connect(g).connect(master);if(wet)g.connect(revSend);s.start(t);s.stop(t+dur+0.05);
 }
 function scheduleStep(n,t){
-  if(n<16){ if(n%4===0) tone('square',n===0?1320:880,t,0.12,0.06); return; }
-  const m=n-16, s=m%16, bar=Math.floor(m/16);
-  const root=45+pat.prog[bar%4];
-  if(pat.kick.includes(s)){ tone('sine',150,t,0.9,0.28,45); tone('triangle',hz(root),t,0.35,stepDur*3.2); }
-  if(s===4||s===12){ noise(t,0.45,0.16,'bandpass',1800); tone('triangle',190,t,0.2,0.09); }
-  if(s%2===0) noise(t,0.12,0.04,'highpass',7000);
-  if(bar%2===1&&s>=13) noise(t,0.09,0.03,'highpass',8000);
+  if(n<16){ if(n%4===0) keys(n===0?69:64,t,0.25,0.3); return; }
+  const m=n-16, s=m%16, bar=Math.floor(m/16), ch=pat.prog[bar%4], root=ch[0];
+  if(s===0) pad([45+root,57+root,57+root+(ch[1]?3:4),57+root+7],t,stepDur*16);
+  if(pat.kick.includes(s)){ kick(t); bass808(33+root,t,stepDur*5); }
+  if(s===4||s===12) noise(t,0.3,0.2,'bandpass',1100,true);
+  if(s%2===0) noise(t,0.045,0.035,'highpass',6000);
+  if(bar%2===1&&s>=13) noise(t,0.035,0.03,'highpass',6500);
   const note=pat.mel[m%32];
-  if(note!==null) tone('triangle',hz(note),t,0.16,stepDur*1.8);
+  if(note!==null) keys(note,t,stepDur*7,0.2);
 }
 function tick(){
   while(nextTime<ctx.currentTime+0.12){
@@ -321,9 +342,22 @@ function start(){
     ctx=new (window.AudioContext||window.webkitAudioContext)();
     master=ctx.createGain(); master.gain.value=0.8;
     analyser=ctx.createAnalyser(); analyser.fftSize=1024;
-    master.connect(analyser).connect(ctx.destination);
+    // 高域を削り、低域を持ち上げてから出す
+    const hi=ctx.createBiquadFilter(); hi.type='highshelf'; hi.frequency.value=4500; hi.gain.value=-7;
+    const lo=ctx.createBiquadFilter(); lo.type='lowshelf'; lo.frequency.value=120; lo.gain.value=5;
+    const comp=ctx.createDynamicsCompressor(); comp.threshold.value=-14; comp.ratio.value=4;
+    master.connect(hi).connect(lo).connect(comp).connect(analyser).connect(ctx.destination);
     noiseBuf=ctx.createBuffer(1,ctx.sampleRate*0.5,ctx.sampleRate);
     const d=noiseBuf.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1;
+    // 808 を歪ませて小さいスピーカーでも聞こえるように
+    bassBus=ctx.createWaveShaper(); const cv=new Float32Array(1024);
+    for(let i=0;i<1024;i++){ const x=i/512-1; cv[i]=Math.tanh(2.6*x); } bassBus.curve=cv; bassBus.connect(master);
+    // 残響
+    const len=Math.floor(ctx.sampleRate*2.4), ir=ctx.createBuffer(2,len,ctx.sampleRate);
+    for(let c=0;c<2;c++){ const b=ir.getChannelData(c); for(let i=0;i<len;i++) b[i]=(Math.random()*2-1)*Math.pow(1-i/len,2.6); }
+    const conv=ctx.createConvolver(); conv.buffer=ir;
+    const revLp=ctx.createBiquadFilter(); revLp.type='lowpass'; revLp.frequency.value=2200;
+    revSend=ctx.createGain(); revSend.gain.value=0.55; revSend.connect(conv).connect(revLp).connect(master);
   }
   ctx.resume();
   saveRecord(); clearSheet(); pat=genPattern();
@@ -413,7 +447,7 @@ function draw(){
     g.beginPath(); let prev=null;
     for(let s=0;s<32;s++){
       const n=pat.mel[s]; if(n!==null) prev=n; if(prev===null) continue;
-      const x=L+span*(s/32), x2=L+span*((s+1)/32), y=base-6-(prev-69)/15*(base-22);
+      const x=L+span*(s/32), x2=L+span*((s+1)/32), y=base-6-(prev-57)/15*(base-22);
       if(s===0||g.__first){ g.moveTo(x,y); g.__first=false; } else g.lineTo(x,y);
       g.lineTo(x2,y);
     }
