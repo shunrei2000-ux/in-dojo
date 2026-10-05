@@ -1,0 +1,105 @@
+diff --git a/node_modules/@capacitor-community/speech-recognition/ios/Plugin/Plugin.swift b/node_modules/@capacitor-community/speech-recognition/ios/Plugin/Plugin.swift
+index 5d1b35b..0e2388a 100644
+--- a/node_modules/@capacitor-community/speech-recognition/ios/Plugin/Plugin.swift
++++ b/node_modules/@capacitor-community/speech-recognition/ios/Plugin/Plugin.swift
+@@ -60,12 +60,20 @@ public class SpeechRecognition: CAPPlugin {
+                 self.recognitionTask = nil
+             }
+ 
+-            self.audioEngine = AVAudioEngine.init()
++            // 前回の録音が残っていたら片付けてから始める
++            if let old = self.audioEngine {
++                if old.isRunning { old.stop() }
++                old.inputNode.removeTap(onBus: 0)
++            }
++            self.recognitionRequest = nil
++
++            let engine = AVAudioEngine.init()
++            self.audioEngine = engine
+             self.speechRecognizer = SFSpeechRecognizer.init(locale: Locale(identifier: language))
+ 
+             let audioSession: AVAudioSession = AVAudioSession.sharedInstance()
+             do {
+-                try audioSession.setCategory(AVAudioSession.Category.playAndRecord, options: AVAudioSession.CategoryOptions.defaultToSpeaker)
++                try audioSession.setCategory(AVAudioSession.Category.playAndRecord, options: [.defaultToSpeaker, .mixWithOthers])
+                 try audioSession.setMode(AVAudioSession.Mode.default)
+                 do {
+                     try audioSession.setActive(true, options: AVAudioSession.SetActiveOptions.notifyOthersOnDeactivation)
+@@ -80,10 +88,17 @@ public class SpeechRecognition: CAPPlugin {
+             self.recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
+             self.recognitionRequest?.shouldReportPartialResults = partialResults
+ 
+-            let inputNode: AVAudioInputNode = self.audioEngine!.inputNode
++            let inputNode: AVAudioInputNode = engine.inputNode
+             let format: AVAudioFormat = inputNode.outputFormat(forBus: 0)
++            // マイクの形式が取れないまま録音を始めるとアプリが落ちるので、ここで止める
++            if format.sampleRate == 0 || format.channelCount == 0 {
++                self.recognitionRequest = nil
++                call.reject("Microphone is not ready.")
++                return
++            }
++            let request = self.recognitionRequest!
+ 
+-            self.recognitionTask = self.speechRecognizer?.recognitionTask(with: self.recognitionRequest!, resultHandler: { (result, error) in
++            self.recognitionTask = self.speechRecognizer?.recognitionTask(with: request, resultHandler: { (result, error) in
+                 if result != nil {
+                     let resultArray: NSMutableArray = NSMutableArray()
+                     var counter: Int = 0
+@@ -104,31 +119,36 @@ public class SpeechRecognition: CAPPlugin {
+                     }
+ 
+                     if result!.isFinal {
+-                        self.audioEngine!.stop()
+-                        self.audioEngine?.inputNode.removeTap(onBus: 0)
+-                        self.notifyListeners("listeningState", data: ["status": "stopped"])
+-                        self.recognitionTask = nil
+-                        self.recognitionRequest = nil
++                        engine.stop()
++                        engine.inputNode.removeTap(onBus: 0)
++                        if self.audioEngine === engine {
++                            self.notifyListeners("listeningState", data: ["status": "stopped"])
++                            self.recognitionTask = nil
++                            self.recognitionRequest = nil
++                        }
+                     }
+                 }
+ 
+                 if error != nil {
+-                    self.audioEngine!.stop()
+-                    self.audioEngine?.inputNode.removeTap(onBus: 0)
+-                    self.recognitionRequest = nil
+-                    self.recognitionTask = nil
+-                    self.notifyListeners("listeningState", data: ["status": "stopped"])
++                    engine.stop()
++                    engine.inputNode.removeTap(onBus: 0)
++                    if self.audioEngine === engine {
++                        self.recognitionRequest = nil
++                        self.recognitionTask = nil
++                        self.notifyListeners("listeningState", data: ["status": "stopped"])
++                    }
+                     call.reject(error!.localizedDescription)
+                 }
+             })
+ 
++            inputNode.removeTap(onBus: 0)
+             inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { (buffer: AVAudioPCMBuffer, _: AVAudioTime) in
+-                self.recognitionRequest?.append(buffer)
++                request.append(buffer)
+             }
+ 
+-            self.audioEngine?.prepare()
++            engine.prepare()
+             do {
+-                try self.audioEngine?.start()
++                try engine.start()
+                 self.notifyListeners("listeningState", data: ["status": "started"])
+                 if partialResults {
+                     call.resolve()
+@@ -143,6 +163,7 @@ public class SpeechRecognition: CAPPlugin {
+         DispatchQueue.global(qos: DispatchQoS.QoSClass.default).async {
+             if let engine = self.audioEngine, engine.isRunning {
+                 engine.stop()
++                engine.inputNode.removeTap(onBus: 0)
+                 self.recognitionRequest?.endAudio()
+                 self.notifyListeners("listeningState", data: ["status": "stopped"])
+             }

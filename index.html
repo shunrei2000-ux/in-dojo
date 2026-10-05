@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
 <title>韻道場</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
 <style>
@@ -19,61 +19,62 @@
 }
 *{box-sizing:border-box}
 [hidden]{display:none!important}
-html,body{margin:0}
+html,body{margin:0;overflow-x:hidden;-webkit-text-size-adjust:100%;text-size-adjust:100%}
 body{background:var(--paper);
   background-image:radial-gradient(120% 60% at 50% 100%,rgba(255,90,20,.16),transparent 70%),
     radial-gradient(60% 30% at 85% 0%,rgba(255,154,31,.08),transparent 70%);
   background-attachment:fixed;min-height:100vh;
   color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.6;
-  padding-inline:16px;padding-block:20px 40px}
-.app{max-width:460px;margin-inline:auto;display:flex;flex-direction:column;gap:14px}
+  padding:calc(14px + env(safe-area-inset-top,0px)) calc(16px + env(safe-area-inset-right,0px))
+    calc(32px + env(safe-area-inset-bottom,0px)) calc(16px + env(safe-area-inset-left,0px))}
+.app{max-width:460px;margin-inline:auto;display:flex;flex-direction:column;gap:clamp(8px,1.6vh,14px);min-width:0}
 header{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;padding-bottom:10px;position:relative}
 header::after{content:"";position:absolute;left:0;right:0;bottom:0;height:6px;
   background:repeating-linear-gradient(-45deg,var(--marker) 0 10px,var(--paper) 10px 20px)}
 .brand{display:flex;flex-direction:column;line-height:1}
 .brand small{font-family:var(--latin);font-size:13px;letter-spacing:.32em;color:var(--ink-soft)}
-h1{font-family:var(--display);font-weight:400;font-size:40px;margin:0;letter-spacing:.02em;line-height:1.05;
+h1{font-family:var(--display);font-weight:400;font-size:clamp(26px,4.6vh,40px);margin:0;letter-spacing:.02em;line-height:1.05;
   text-shadow:3px 3px 0 var(--pencil)}
 .rhyme{font-size:11px;color:var(--ink-soft);letter-spacing:.14em;text-align:right;line-height:1.2}
-.rhyme b{display:block;font-family:var(--latin);font-weight:400;font-size:30px;letter-spacing:.06em;color:var(--marker);text-transform:uppercase}
+.rhyme b{display:block;font-family:var(--latin);font-weight:400;font-size:clamp(22px,3.4vh,30px);letter-spacing:.06em;color:var(--marker);text-transform:uppercase}
 
 .sheet{background:var(--sheet);border:1px solid var(--rule);border-top:3px solid var(--ink);overflow:hidden}
 .wavebox{position:relative;border-bottom:1px solid var(--rule);background:#0e0e10}
-canvas{display:block;width:100%;height:110px}
+canvas{display:block;width:100%;height:clamp(64px,10vh,110px)}
 .beatinfo{position:absolute;left:10px;top:5px;font-family:var(--latin);font-size:14px;color:var(--ink-soft);letter-spacing:.16em}
 .count{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
   font-family:var(--latin);font-size:96px;color:var(--pencil);pointer-events:none;text-shadow:0 0 24px rgba(255,59,47,.6)}
 
 .lines{display:flex;flex-direction:column}
-.line{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) minmax(72px,auto);gap:8px;align-items:center;
-  padding:11px 10px;border-bottom:1px solid var(--rule)}
+.line{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) minmax(64px,26%);gap:7px;align-items:center;
+  padding:clamp(5px,1vh,11px) 10px;border-bottom:1px solid var(--rule)}
 .line:last-child{border-bottom:0}
-.slot{min-height:54px;border:1px solid var(--rule);background:#0e0e10;transform:skewX(-8deg);display:flex;align-items:center;
-  justify-content:center;text-align:center;padding:4px 10px;font-family:var(--hand);font-weight:700;font-size:16px;line-height:1.25;
+.slot{min-height:clamp(38px,5.6vh,54px);min-width:0;border:1px solid var(--rule);background:#0e0e10;transform:skewX(-8deg);display:flex;align-items:center;
+  justify-content:center;text-align:center;padding:3px 6px;font-family:var(--hand);font-weight:700;font-size:clamp(13px,3.9vw,16px);line-height:1.2;
   overflow-wrap:anywhere;transition:background .1s,border-color .1s,box-shadow .1s}
 .slot.filled{border-color:var(--ink);background:#1d1d21}
 .slot.now{background:var(--marker);color:var(--marker-ink);border-color:var(--marker);box-shadow:0 0 18px rgba(255,154,31,.55)}
-.word{font-family:var(--display);font-size:20px;color:var(--pencil);text-align:center;padding:2px 4px;
-  border-bottom:3px solid transparent;white-space:nowrap;text-shadow:0 0 14px rgba(255,59,47,.45)}
+.word{font-family:var(--display);font-size:clamp(15px,4.6vw,20px);color:var(--pencil);text-align:center;padding:2px 2px;min-width:0;
+  border-bottom:3px solid transparent;overflow-wrap:anywhere;line-height:1.2;text-shadow:0 0 14px rgba(255,59,47,.45)}
 .word.now{border-bottom-color:var(--pencil)}
 .word.free{font-family:var(--hand);font-weight:700;font-size:17px;color:var(--ink-soft);border:1px dashed var(--pencil);
   background:#0e0e10;transform:skewX(-8deg);text-shadow:none;
-  min-height:54px;display:flex;align-items:center;justify-content:center;white-space:normal;overflow-wrap:anywhere;line-height:1.25}
+  min-height:clamp(38px,5.6vh,54px);display:flex;align-items:center;justify-content:center;white-space:normal;overflow-wrap:anywhere;line-height:1.25}
 .word.free.now{background:var(--marker);color:var(--marker-ink);border-style:solid;border-color:var(--marker);box-shadow:0 0 18px rgba(255,154,31,.55)}
 .word.free.filled{color:var(--pencil);border-style:solid}
 .word.hit{color:var(--hit);text-shadow:0 0 14px rgba(233,226,200,.5)}
 .word.hit::after{content:"◎";font-size:12px;margin-left:3px;color:var(--marker)}
 .line.example .slot{color:var(--ink-soft)}
-.tag{font-size:10px;color:var(--ink-soft);letter-spacing:.14em;padding:6px 10px 0}
+.tag{font-size:10px;color:var(--ink-soft);letter-spacing:.14em;padding:4px 10px 0}
 
 .controls{display:flex;flex-direction:column;gap:12px}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 button,select,input{font:inherit;color:inherit}
-.go{flex:1 1 180px;font-family:var(--display);font-size:19px;padding:14px 16px;border:2px solid var(--marker);
+.go{flex:1 1 150px;font-family:var(--display);font-size:clamp(16px,2.4vh,19px);padding:clamp(10px,1.6vh,14px) 14px;margin-right:4px;border:2px solid var(--marker);
   border-radius:0;background:var(--marker);color:var(--marker-ink);cursor:pointer;box-shadow:4px 4px 0 var(--pencil)}
 .go:active{transform:translate(2px,2px);box-shadow:2px 2px 0 var(--pencil)}
 .go.on{background:transparent;color:var(--marker)}
-.ghost{padding:13px 14px;border:1px solid var(--ink-soft);border-radius:0;background:transparent;cursor:pointer;font-weight:700}
+.ghost{padding:clamp(9px,1.5vh,13px) 12px;border:1px solid var(--ink-soft);border-radius:0;background:transparent;cursor:pointer;font-weight:700}
 .ghost:disabled,.go:disabled{opacity:.4;cursor:default}
 button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
 label{font-size:12px;color:var(--ink-soft);display:flex;align-items:center;gap:8px}
@@ -276,7 +277,7 @@ const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
 /* iPhoneアプリ版では本体の音声認識を使う */
 const CAP=window.Capacitor, NATIVE=!!(CAP&&CAP.isNativePlatform&&CAP.isNativePlatform());
 const NSR=NATIVE&&CAP.Plugins?CAP.Plugins.SpeechRecognition:null;
-let nativeListening=false, nativeHooked=false, silentEl=null;
+let nativeListening=false, nativeHooked=false, silentEl=null, nativeIdle=Promise.resolve();
 /* 消音スイッチがオンでもビートを鳴らす：音の扱いを「再生」にし、無音の音声を流し続ける */
 function forcePlayback(){
   try{ if(navigator.audioSession) navigator.audioSession.type='playback'; }catch(_){}
@@ -303,8 +304,13 @@ async function startRecNative(){
       nativeHooked=true;
       NSR.addListener('partialResults',d=>{ if(nativeListening&&d&&d.matches&&d.matches.length) feed(String(d.matches[0]),LAG); });
     }
+    await nativeIdle;   // 前回の録音が完全に止まるのを待つ
     nativeListening=true;
-    rec={ stop(){ nativeListening=false; try{ NSR.stop(); }catch(_){} }, abort(){ this.stop(); } };
+    rec={ stop(){
+      if(!nativeListening) return; nativeListening=false;
+      let p; try{ p=NSR.stop(); }catch(_){}
+      nativeIdle=Promise.resolve(p).catch(()=>{}).then(()=>new Promise(r=>setTimeout(r,600)));
+    }, abort(){ this.stop(); } };
     NSR.start({language:'ja-JP',partialResults:true,popup:false}).catch(()=>{});
     await new Promise(r=>setTimeout(r,450));
   }catch(_){ useTyped('音声認識を開始できませんでした。'); }
