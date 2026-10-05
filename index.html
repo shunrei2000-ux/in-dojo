@@ -276,7 +276,23 @@ const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
 /* iPhoneアプリ版では本体の音声認識を使う */
 const CAP=window.Capacitor, NATIVE=!!(CAP&&CAP.isNativePlatform&&CAP.isNativePlatform());
 const NSR=NATIVE&&CAP.Plugins?CAP.Plugins.SpeechRecognition:null;
-let nativeListening=false, nativeHooked=false;
+let nativeListening=false, nativeHooked=false, silentEl=null;
+/* 消音スイッチがオンでもビートを鳴らす：音の扱いを「再生」にし、無音の音声を流し続ける */
+function forcePlayback(){
+  try{ if(navigator.audioSession) navigator.audioSession.type='playback'; }catch(_){}
+  try{
+    if(!silentEl){
+      const n=4000, b=new Uint8Array(44+n), v=new DataView(b.buffer);
+      const w=(o,t)=>{ for(let i=0;i<t.length;i++) b[o+i]=t.charCodeAt(i); };
+      w(0,'RIFF'); v.setUint32(4,36+n,true); w(8,'WAVEfmt '); v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
+      v.setUint32(24,8000,true); v.setUint32(28,8000,true); v.setUint16(32,1,true); v.setUint16(34,8,true); w(36,'data'); v.setUint32(40,n,true);
+      b.fill(128,44);
+      silentEl=new Audio(URL.createObjectURL(new Blob([b],{type:'audio/wav'})));
+      silentEl.loop=true; silentEl.setAttribute('playsinline','');
+    }
+    const p=silentEl.play(); if(p&&p.catch) p.catch(()=>{});
+  }catch(_){}
+}
 async function startRecNative(){
   if(!NSR){ useTyped('音声認識を読み込めませんでした。'); return; }
   try{
@@ -390,6 +406,7 @@ function start(){
     revSend=ctx.createGain(); revSend.gain.value=0.55; revSend.connect(conv).connect(revLp).connect(master);
   }
   saveRecord(); clearSheet(); pat=genPattern();
+  if(NATIVE) forcePlayback();
   starting=true; goBtn.disabled=true; inCount=true; skip=0;
   statusEl.textContent='準備中…';
   try{ ctx.resume(); }catch(_){}
