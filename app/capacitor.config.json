@@ -1,0 +1,6 @@
+{
+  "appId": "com.shunrei2000.indojo",
+  "appName": "韻道場",
+  "webDir": "www",
+  "ios": { "contentInset": "never", "backgroundColor": "#0b0b0d" }
+}

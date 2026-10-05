@@ -135,7 +135,7 @@ select{padding:6px 8px;border:1px solid var(--rule);border-radius:0;background:v
         <select id="bars"><option value="1">1小節</option><option value="2" selected>2小節</option></select>
       </label>
     </div>
-    <p class="note">テンポは始めるたびに BPM 70〜110 の間でランダムに決まります。ビートをマイクが拾うと文字起こしが乱れます。イヤホンで聞くのがおすすめです。音声入力は Chrome か Safari で動きます。</p>
+    <p class="note">テンポは始めるたびに BPM 70〜110 の間でランダムに決まります。ビートをマイクが拾うと文字起こしが乱れます。イヤホンで聞くのがおすすめです。<span id="webNote">音声入力は Chrome か Safari で動きます。</span></p>
   </div>
 
   <section class="log" aria-labelledby="logH">
@@ -273,6 +273,26 @@ function tick(){
 
 /* ---------- 声 → 空欄 ---------- */
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+/* iPhoneアプリ版では本体の音声認識を使う */
+const CAP=window.Capacitor, NATIVE=!!(CAP&&CAP.isNativePlatform&&CAP.isNativePlatform());
+const NSR=NATIVE&&CAP.Plugins?CAP.Plugins.SpeechRecognition:null;
+let nativeListening=false, nativeHooked=false;
+async function startRecNative(){
+  if(!NSR){ useTyped('音声認識を読み込めませんでした。'); return; }
+  try{
+    let perm=await NSR.checkPermissions();
+    if(perm.speechRecognition!=='granted') perm=await NSR.requestPermissions();
+    if(perm.speechRecognition!=='granted'){ useTyped('マイクと音声認識が許可されていません。設定アプリの「韻道場」から許可してください。'); return; }
+    if(!nativeHooked){
+      nativeHooked=true;
+      NSR.addListener('partialResults',d=>{ if(nativeListening&&d&&d.matches&&d.matches.length) feed(String(d.matches[0]),LAG); });
+    }
+    nativeListening=true;
+    rec={ stop(){ nativeListening=false; try{ NSR.stop(); }catch(_){} }, abort(){ this.stop(); } };
+    NSR.start({language:'ja-JP',partialResults:true,popup:false}).catch(()=>{});
+    await new Promise(r=>setTimeout(r,450));
+  }catch(_){ useTyped('音声認識を開始できませんでした。'); }
+}
 let rec=null, recBase='', recFin='', skip=0, inCount=true;
 function cellAt(t){
   const rowDur=bars*16*stepDur;
@@ -382,6 +402,7 @@ function start(){
     setTimeout(fire,600);
   };
   if(typedMode){ go(); return; }
+  if(NATIVE){ startRecNative().then(go,go); return; }
   micReady=()=>setTimeout(go,350);
   startRec();
   if(typedMode){ go(); return; }
@@ -519,6 +540,7 @@ function progress(el){
   }
 }
 
+if(NATIVE) $('webNote').hidden=true;
 pickWords(); build(); showExample(); pat=genPattern(); renderLog();
 requestAnimationFrame(draw);
 })();
