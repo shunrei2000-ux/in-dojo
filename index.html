@@ -215,7 +215,7 @@ const LONG={A:'Ā',I:'Ī',U:'Ū',E:'Ē',O:'Ō'};
 function keyLabel(k){
   const out=[];
   for(const c of (k||'')){
-    if(c==='R'){ const p=out[out.length-1]; if(p&&LONG[p]) out[out.length-1]=LONG[p]; else out.push('ー'); }
+    if(c==='R'){ const p=out[out.length-1]; if(p&&LONG[p]) out[out.length-1]=LONG[p]; }
     else out.push(c.toUpperCase());
   }
   return out.join('-');
