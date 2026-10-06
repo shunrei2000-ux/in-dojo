@@ -210,8 +210,16 @@ function syms(r){
   return out;
 }
 const keyOf=(r,n)=>{ const q=syms(r); return q.length>=n?q.slice(-n).join(''):null; };
-const KANA={a:'ア',i:'イ',u:'ウ',e:'エ',o:'オ',n:'ン',R:'ー'};
-const keyLabel=k=>k?[...k].map(c=>KANA[c]).join(''):'';
+// 表示はローマ字。のばす音は母音の上に横棒（例：Ō）
+const LONG={A:'Ā',I:'Ī',U:'Ū',E:'Ē',O:'Ō'};
+function keyLabel(k){
+  const out=[];
+  for(const c of (k||'')){
+    if(c==='R'){ const p=out[out.length-1]; if(p&&LONG[p]) out[out.length-1]=LONG[p]; else out.push('ー'); }
+    else out.push(c.toUpperCase());
+  }
+  return out.join('-');
+}
 const LEX=[], BYSURF=new Map(), GROUPS={};
 WORD_SRC.split(' ').forEach(tok=>{
   const i=tok.indexOf(':'), alts=tok.slice(0,i).split('|'), rd=tok.slice(i+1);
