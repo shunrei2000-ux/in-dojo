@@ -252,7 +252,16 @@ function pickWords(){
   const useTight=tight.length>=ROWS&&Math.random()<0.6;
   const pool=(useTight?tight:group).slice(); setK3=useTight?anchor.k3:null;
   wordEnts=[];
-  for(let i=0;i<ROWS-1;i++) wordEnts.push(pool.splice(Math.floor(Math.random()*pool.length),1)[0]);
+  // 「青空・夜空・星空」のように同じ字で終わる言葉ばかりにならないようにする
+  for(let i=0;i<ROWS-1;i++){
+    let j=0;
+    for(let t=0;t<12;t++){
+      j=Math.floor(Math.random()*pool.length);
+      const c=pool[j].w.slice(-1);
+      if(!wordEnts.some(e=>e.w.slice(-1)===c||e.w.includes(pool[j].w)||pool[j].w.includes(e.w))) break;
+    }
+    wordEnts.push(pool.splice(j,1)[0]);
+  }
   words=wordEnts.map(e=>e.w); words[ROWS-1]='';
   $('rhymeTag').textContent=keyLabel(setK3||setKey);
 }
