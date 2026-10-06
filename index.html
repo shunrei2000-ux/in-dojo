@@ -85,6 +85,23 @@ select{padding:6px 8px;border:1px solid var(--rule);border-radius:0;background:v
 .typed input{width:100%;padding:12px;border:1px solid var(--ink-soft);border-radius:0;background:var(--sheet);
   font-family:var(--hand);font-weight:700;font-size:16px}
 .note{font-size:12px;color:var(--ink-soft);margin:0}
+.score{background:var(--sheet);border:1px solid var(--rule);border-top:3px solid var(--marker);padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.sc-top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.sc-num b{font-family:var(--latin);font-weight:400;font-size:72px;line-height:.9;color:var(--marker);font-variant-numeric:tabular-nums}
+.sc-num span{font-family:var(--latin);font-size:20px;color:var(--ink-soft);margin-left:4px}
+.sc-rank{font-family:var(--display);font-size:22px;text-shadow:2px 2px 0 var(--pencil)}
+.sc-bars{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;margin:0;align-items:center;font-size:13px}
+.sc-bars dt{font-weight:700}
+.sc-bars dd{margin:0;display:flex;align-items:center;gap:10px;min-width:0}
+.sc-bars i{flex:1;height:8px;background:var(--rule);display:block;min-width:0}
+.sc-bars u{display:block;height:100%;background:var(--marker);width:0;text-decoration:none}
+.sc-bars span{font-family:var(--latin);font-size:17px;color:var(--ink-soft);min-width:3.2em;text-align:right;font-variant-numeric:tabular-nums}
+.sc-own{margin:0;font-size:13px}
+.card{position:fixed;inset:0;background:rgba(0,0,0,.82);display:flex;align-items:center;justify-content:center;z-index:10;
+  padding:calc(16px + env(safe-area-inset-top,0px)) 16px calc(16px + env(safe-area-inset-bottom,0px))}
+.card-in{max-width:420px;width:100%;max-height:100%;overflow:auto;display:flex;flex-direction:column;gap:10px}
+.card-in img{width:100%;height:auto;border:1px solid var(--rule)}
+.card-in textarea{width:100%;background:var(--sheet);border:1px solid var(--rule);color:var(--ink);font:inherit;font-size:13px;padding:8px;resize:none}
 .log{display:flex;flex-direction:column;gap:8px;margin-top:10px}
 .log h2{font-family:var(--display);font-weight:400;font-size:20px;margin:0;letter-spacing:.04em}
 .log h2 span{font-family:var(--latin);font-size:13px;letter-spacing:.32em;color:var(--ink-soft);margin-left:8px}
@@ -126,6 +143,21 @@ select{padding:6px 8px;border:1px solid var(--rule);border-radius:0;background:v
       <button class="go" id="go" type="button">ビートを流す</button>
       <button class="ghost" id="shuffle" type="button">お題を変える</button>
     </div>
+    <div class="score" id="score" hidden>
+      <div class="sc-top">
+        <div class="sc-num"><b id="scTotal">0</b><span>/100</span></div>
+        <div class="sc-rank" id="scRank"></div>
+      </div>
+      <dl class="sc-bars">
+        <dt>ライム</dt><dd><i><u id="barRhyme"></u></i><span id="scRhyme"></span></dd>
+        <dt>フロウ</dt><dd><i><u id="barFlow"></u></i><span id="scFlow"></span></dd>
+        <dt>語彙</dt><dd><i><u id="barVocab"></u></i><span id="scVocab"></span></dd>
+        <dt>完走</dt><dd><i><u id="barFinish"></u></i><span id="scFinish"></span></dd>
+      </dl>
+      <p class="sc-own" id="scOwn"></p>
+      <button class="ghost" id="shareNow" type="button">結果を共有する</button>
+      <p class="note">バイブス（声の熱量）、アンサー（相手への返し）、パンチラインの切れ味は機械では測れないため、採点に入れていません。</p>
+    </div>
     <div class="status" id="status">ボタンを押すと4カウントのあと1行目が始まります。右端の言葉で終わるように声に出してください。最後の行は、同じ韻の言葉を自分で考えて締めます。</div>
     <div class="typed" id="typed" hidden>
       <label for="typedIn">マイクの代わりに、ビートに合わせてここに打ち込めます</label>
@@ -139,6 +171,15 @@ select{padding:6px 8px;border:1px solid var(--rule);border-radius:0;background:v
     <p class="note">テンポは始めるたびに BPM 70〜110 の間でランダムに決まります。ビートをマイクが拾うと文字起こしが乱れます。イヤホンで聞くのがおすすめです。<span id="webNote">音声入力は Chrome か Safari で動きます。</span></p>
   </div>
 
+  <div class="card" id="card" hidden>
+    <div class="card-in">
+      <img id="cardImg" alt="共有用の結果画像">
+      <p class="note">画像を長押し（パソコンは右クリック）で保存できます。</p>
+      <textarea id="cardTxt" rows="2" readonly></textarea>
+      <div class="row"><button class="ghost" id="cardCopy" type="button">文をコピー</button><button class="ghost" id="cardClose" type="button">閉じる</button></div>
+    </div>
+  </div>
+
   <section class="log" aria-labelledby="logH">
     <h2 id="logH">記録<span>LOG</span></h2>
     <p class="empty" id="logEmpty">まだ記録はありません。1回やり終えるとここに残ります。</p>
@@ -148,23 +189,43 @@ select{padding:6px 8px;border:1px solid var(--rule);border-radius:0;background:v
 
 <script>
 (function(){
-const RHYMES=[
-  {tag:'a-i',words:['未来','世界','時代','期待','視界','正解','限界','出会い','誓い','舞台','願い','戦い']},
-  {tag:'o-u',words:['最高','太陽','感情','友情','頂上','東京','成功','希望','衝動','鼓動','表情','行動']},
-  {tag:'a-n',words:['時間','瞬間','簡単','空間','不安','普段','階段','看板','判断','油断','自慢','我慢']},
-  {tag:'a-chi',words:['街','価値','勝ち','形','友達','旅立ち','仲間たち','生い立ち','俺たち','育ち']},
-  {tag:'e-i',words:['人生','完成','快晴','反省','運命','証明','透明','冷静','個性','姿勢']},
-  {tag:'a-e',words:['名前','お前','当たり前','目の前','建前','一人前','腕前','駅前','この前','持ち前']},
-  {tag:'a-a',words:['仲間','頭','宝','力','体','刀','若さ','高さ','花','朝']},
-  {tag:'i-n',words:['自信','写真','全身','確信','前進','決心','本心','革新','安心','関心']},
-  {tag:'e-n',words:['永遠','挑戦','経験','最前線','応援','冒険','無限','人間','条件','作戦']},
-  {tag:'u-u',words:['自由','理由','余裕','空中','夢中','途中','宇宙','一流','普通','苦痛']},
-  {tag:'o-i',words:['思い','匂い','勢い','重い','遠い','恋','尊い','面白い','多い','黒い']}
-];
+const WORD_SRC="未来:みらい 世界:せかい 時代:じだい 期待:きたい 視界:しかい 正解:せいかい 限界:げんかい 出会い:であい 誓い:ちかい 舞台:ぶたい 願い:ねがい 戦い|闘い:たたかい 違い:ちがい 理解:りかい 機会|機械:きかい 後悔|公開:こうかい 再会|再開:さいかい 誤解:ごかい 都会:とかい 社会:しゃかい 大会:たいかい 破壊:はかい 世代:せだい 兄弟:きょうだい 偉大:いだい 課題:かだい 話題:わだい 存在:そんざい 現在:げんざい 天才:てんさい 喝采:かっさい 一切:いっさい 繊細:せんさい 実際:じっさい 絶対:ぜったい 反対:はんたい 状態:じょうたい 正体|招待:しょうたい 具体:ぐたい 段階:だんかい 痛い:いたい 高い:たかい 若い:わかい 愛:あい 甘い:あまい 赤い:あかい 深い:ふかい 浅い:あさい 長い:ながい 苦い:にがい 辛い:つらい 暗い:くらい 固い|硬い|堅い:かたい 狭い:せまい 細かい:こまかい 温かい|暖かい:あたたかい 柔らかい:やわらかい 早い|速い:はやい やばい|ヤバい:やばい でかい|デカい:でかい 怖い:こわい 弱い:よわい 笑い:わらい 狙い:ねらい 支払い:しはらい 占い:うらない 付き合い:つきあい 殴り合い:なぐりあい 助け合い:たすけあい 場合:ばあい 具合:ぐあい 試合:しあい 気合|気合い:きあい 賑わい:にぎわい 侍:さむらい 灰:はい 熱い|暑い|厚い:あつい 悪い:わるい 軽い:かるい 古い:ふるい 寒い:さむい 狂い:くるい 救い:すくい 月:つき 雪:ゆき 海:うみ 煙:けむり 結び:むすび 武士:ぶし 武器:ぶき 好き|隙:すき 筋:すじ 眠り:ねむり 祭り:まつり 繋がり:つながり 裏切り:うらぎり 強い:つよい 思い|想い|重い:おもい 匂い:におい 勢い:いきおい 遠い:とおい 尊い:とうとい 面白い:おもしろい 多い:おおい 黒い:くろい 白い:しろい 広い:ひろい 青い:あおい 遅い:おそい 脆い:もろい 鋭い:するどい 恋|濃い:こい 潔い:いさぎよい 戸惑い:とまどい 装い:よそおい 誘い:さそい 命:いのち 気持ち:きもち 祈り:いのり 誇り:ほこり 名残:なごり 道のり:みちのり 残り:のこり 星:ほし 重み:おもみ 強み:つよみ 喜び:よろこび 遊び:あそび 迷い:まよい 争い:あらそい 呪い:のろい 時:とき 強気:つよき 嬉しい:うれしい 楽しい:たのしい 悲しい:かなしい 優しい:やさしい 寂しい|淋しい:さびしい 激しい:はげしい 新しい:あたらしい 正しい:ただしい 厳しい:きびしい 眩しい:まぶしい 悔しい:くやしい 愛しい:いとしい 苦しい:くるしい 美しい:うつくしい 懐かしい:なつかしい 欲しい:ほしい 魂:たましい 意味:いみ 道|未知:みち 西:にし 悲しみ:かなしみ 苦しみ:くるしみ 楽しみ:たのしみ 憎しみ:にくしみ 騎士:きし 意志|意思:いし 雰囲気:ふんいき 生意気:なまいき 息|粋:いき 景色:けしき 意識:いしき 知識:ちしき 締め切り:しめきり 街|町:まち 価値|勝ち:かち 形:かたち 友達:ともだち 旅立ち:たびだち 仲間たち|仲間達:なかまたち 生い立ち:おいたち 俺たち|俺達:おれたち 育ち:そだち 幸:さち 味:あじ 鍵:かぎ 兆し:きざし 証:あかし 話:はなし 暮らし:くらし 眼差し:まなざし 日差し:ひざし 嵐:あらし 明かり|灯り:あかり 光:ひかり 怒り:いかり 香り:かおり 独り|一人:ひとり 二人:ふたり 終わり:おわり 始まり:はじまり 守り:まもり 周り:まわり 隣:となり 物語:ものがたり 思いやり:おもいやり 輝き:かがやき 高鳴り:たかなり 雷:かみなり 民:たみ 東:ひがし 南:みなみ 鎖:くさり 波:なみ 闇:やみ 暗闇:くらやみ 痛み:いたみ 悩み:なやみ 弱み:よわみ 学び:まなび 花火:はなび 月明かり:つきあかり 弱気:よわき 時間:じかん 瞬間:しゅんかん 簡単:かんたん 空間:くうかん 不安:ふあん 普段:ふだん 階段:かいだん 看板:かんばん 判断:はんだん 油断:ゆだん 自慢:じまん 我慢:がまん 予感:よかん 実感:じっかん 共感:きょうかん 直感:ちょっかん 存在感:そんざいかん 違和感:いわかん 期間:きかん 習慣:しゅうかん 未完:みかん 悲観:ひかん 楽観:らっかん 決断:けつだん 冗談:じょうだん 相談:そうだん 手段:しゅだん 最短:さいたん 極端:きょくたん 途端:とたん 負担:ふたん 順番:じゅんばん 一番:いちばん 定番:ていばん 本番:ほんばん 出番:でばん 地盤:じばん 鞄:かばん 評判:ひょうばん 裁判:さいばん 団欒:だんらん 混乱:こんらん 反乱:はんらん 散々:さんざん 財産:ざいさん 解散:かいさん 計算:けいさん 予算:よさん 遺産:いさん ロマン:ろまん 不満:ふまん 栄冠:えいかん 王冠:おうかん 永遠:えいえん 挑戦:ちょうせん 経験:けいけん 最前線:さいぜんせん 応援:おうえん 冒険:ぼうけん 無限:むげん 人間:にんげん 条件:じょうけん 作戦:さくせん 世間:せけん 事件:じけん 危険:きけん 試験:しけん 実験:じっけん 意見:いけん 発見:はっけん 偏見:へんけん 真剣:しんけん 特権:とっけん 自然:しぜん 突然:とつぜん 当然:とうぜん 偶然:ぐうぜん 必然:ひつぜん 全然:ぜんぜん 断然:だんぜん 以前:いぜん 安全:あんぜん 完全:かんぜん 万全:ばんぜん 健全:けんぜん 公園:こうえん 声援:せいえん 支援:しえん 縁:えん 路線:ろせん 視線:しせん 目線:めせん 直線:ちょくせん 戦線:せんせん 優先:ゆうせん 新鮮:しんせん 機嫌|期限|起源:きげん 表現:ひょうげん 実現:じつげん 再現:さいげん 証言:しょうげん 宣言:せんげん 発言:はつげん 名言:めいげん 原点:げんてん 頂点:ちょうてん 視点:してん 焦点:しょうてん 拠点:きょてん 満点:まんてん 弱点:じゃくてん 欠点:けってん 運転:うんてん 逆転:ぎゃくてん 回転:かいてん 自信|自身:じしん 写真:しゃしん 確信|革新:かくしん 前進|全身:ぜんしん 決心:けっしん 本心:ほんしん 安心:あんしん 関心|感心:かんしん 中心:ちゅうしん 初心:しょしん 野心:やしん 良心|両親:りょうしん 用心:ようじん 新人:しんじん 本人:ほんにん 証人:しょうにん 職人:しょくにん 達人:たつじん 名人:めいじん 他人:たにん 犯人:はんにん 原因:げんいん 全員:ぜんいん 満員:まんいん 気品:きひん 作品:さくひん 新品:しんぴん パンチライン:ぱんちらいん ライン:らいん サイン:さいん デザイン:でざいん スタートライン:すたーとらいん オンライン:おんらいん ボーダーライン:ぼーだーらいん 無言:むごん 伝言:でんごん 本:ほん 日本:にほん 根本:こんぽん 見本:みほん 基本:きほん 手本:てほん 絵本:えほん 資本:しほん 混沌:こんとん 整頓:せいとん 布団:ふとん 反論:はんろん 結論:けつろん 理論:りろん 議論:ぎろん 正論:せいろん 持論:じろん 損:そん マラソン:まらそん アイコン:あいこん チャンピオン:ちゃんぴおん ジェネレーション:じぇねれーしょん バイブレーション:ばいぶれーしょん モチベーション:もちべーしょん コミュニケーション:こみゅにけーしょん イマジネーション:いまじねーしょん セッション:せっしょん パッション:ぱっしょん ミッション:みっしょん アクション:あくしょん ファッション:ふぁっしょん テンション:てんしょん ポジション:ぽじしょん コレクション:これくしょん リアクション:りあくしょん フィクション:ふぃくしょん ノンフィクション:のんふぃくしょん バージョン:ばーじょん ビジョン:びじょん レボリューション:れぼりゅーしょん 気分:きぶん 自分:じぶん 存分:ぞんぶん 十分|充分:じゅうぶん 半分:はんぶん 新聞:しんぶん 身分:みぶん 多分:たぶん 運:うん 不運:ふうん 幸運:こううん 悪運:あくうん 軍:ぐん 抜群:ばつぐん 教訓:きょうくん 基準:きじゅん 水準:すいじゅん 矛盾:むじゅん 単純:たんじゅん 一瞬:いっしゅん 青春:せいしゅん 最高:さいこう 太陽:たいよう 感情:かんじょう 友情:ゆうじょう 頂上:ちょうじょう 東京:とうきょう 成功:せいこう 希望:きぼう 衝動:しょうどう 鼓動:こどう 表情:ひょうじょう 行動:こうどう 本当:ほんとう 方向:ほうこう 感動:かんどう 根性:こんじょう 愛情:あいじょう 事情:じじょう 日常:にちじょう 戦場:せんじょう 会場:かいじょう 登場:とうじょう 劇場:げきじょう 工場|向上:こうじょう 屋上:おくじょう 以上|異常:いじょう 状況:じょうきょう 環境:かんきょう 影響:えいきょう 故郷:こきょう 逆境:ぎゃっきょう 最強:さいきょう 勉強:べんきょう 度胸:どきょう 絶叫:ぜっきょう 妄想:もうそう 理想:りそう 発想:はっそう 予想:よそう 幻想:げんそう 感想:かんそう 競争:きょうそう 戦争:せんそう 闘争|逃走:とうそう 暴走:ぼうそう 独走:どくそう 相当:そうとう 伝統:でんとう 先頭|戦闘:せんとう 冒頭:ぼうとう 街灯:がいとう 健闘|見当:けんとう 本能:ほんのう 才能:さいのう 可能:かのう 不可能:ふかのう 万能:ばんのう 苦悩:くのう 頭脳:ずのう 栄光:えいこう 絶好調:ぜっこうちょう 流行:りゅうこう 方法:ほうほう 魔法:まほう 作法:さほう 情報:じょうほう 朗報:ろうほう 予報:よほう 解放|開放:かいほう 追放:ついほう 両方:りょうほう 一方:いっぽう 象徴:しょうちょう 成長:せいちょう 絶頂:ぜっちょう 緊張:きんちょう 主張:しゅちょう 慎重|身長:しんちょう 尊重:そんちょう 特徴:とくちょう 波長:はちょう 好調:こうちょう 順調:じゅんちょう 強調|協調:きょうちょう 最高潮:さいこうちょう ヒーロー:ひーろー スロー:すろー フロウ|フロー:ふろー ショー:しょー 王:おう 賞:しょう 相棒:あいぼう 野望:やぼう 絶望:ぜつぼう 願望:がんぼう 欲望:よくぼう 失望:しつぼう 展望:てんぼう 逃亡:とうぼう 乱暴:らんぼう 貧乏:びんぼう 辛抱:しんぼう 相性:あいしょう 路上:ろじょう 炎:ほのお 一生:いっしょう 目標:もくひょう 人生:じんせい 完成|歓声|感性:かんせい 快晴:かいせい 反省:はんせい 運命:うんめい 証明|照明:しょうめい 透明:とうめい 冷静:れいせい 個性:こせい 姿勢:しせい 先生:せんせい 再生:さいせい 更生|構成:こうせい 野生:やせい 理性:りせい 可能性:かのうせい 人間性:にんげんせい 革命:かくめい 使命|指名:しめい 宿命:しゅくめい 生命|声明:せいめい 懸命|賢明:けんめい 説明:せつめい 鮮明:せんめい 不明:ふめい 有名:ゆうめい 無名:むめい 名声:めいせい 平静:へいせい 形勢:けいせい 情勢:じょうせい 優勢:ゆうせい 劣勢:れっせい 全盛:ぜんせい 関係:かんけい 風景:ふうけい 光景:こうけい 背景:はいけい 夜景:やけい 尊敬:そんけい 時計:とけい 余計:よけい 設計:せっけい 合計:ごうけい 丁寧:ていねい 命令:めいれい 綺麗|きれい:きれい 年齢:ねんれい 経営:けいえい 光栄:こうえい 繁栄|反映:はんえい 防衛:ぼうえい 精鋭:せいえい マネー:まねー 完璧:かんぺき 現役:げんえき 利益:りえき 刺激:しげき 感激:かんげき 衝撃:しょうげき 反撃:はんげき 攻撃:こうげき 悲劇:ひげき 喜劇:きげき 劇的:げきてき 敵:てき 素敵:すてき 目的:もくてき 無敵:むてき 圧倒的:あっとうてき 刺激的:しげきてき 運命的:うんめいてき 奇跡|軌跡:きせき 実績:じっせき 成績:せいせき 叫び:さけび 自由:じゆう 理由:りゆう 余裕:よゆう 空中:くうちゅう 夢中:むちゅう 途中:とちゅう 宇宙:うちゅう 一流:いちりゅう 普通:ふつう 苦痛:くつう 英雄:えいゆう 親友:しんゆう 共通:きょうつう 最中:さいちゅう 集中:しゅうちゅう 熱中:ねっちゅう 的中:てきちゅう 連中:れんちゅう 道中:どうちゅう 最終:さいしゅう 練習:れんしゅう 復讐|復習:ふくしゅう 観衆:かんしゅう 群衆:ぐんしゅう 大衆:たいしゅう 一周:いっしゅう 毎週:まいしゅう 来週:らいしゅう 主流:しゅりゅう 我流:がりゅう 上流:じょうりゅう 交流:こうりゅう 合流:ごうりゅう 電流:でんりゅう 龍|竜:りゅう 研究:けんきゅう 永久:えいきゅう 至急:しきゅう 地球:ちきゅう 野球:やきゅう 追求|追及|追究:ついきゅう 要求:ようきゅう 呼吸:こきゅう 高級:こうきゅう 階級:かいきゅう 特集:とくしゅう 仲間:なかま 頭:あたま 宝:たから 力:ちから 体|身体:からだ 刀:かたな 若さ:わかさ 高さ:たかさ 花|鼻:はな 朝:あさ 山:やま 浜:はま 肌:はだ 旗:はた 肩|型|方:かた 中|仲:なか 坂:さか 赤:あか 馬鹿|バカ:ばか 墓:はか 鷹:たか 傘:かさ 技:わざ 味方:みかた 生き方:いきかた やり方:やりかた 考え方:かんがえかた 夕方:ゆうがた 明け方:あけがた 姿:すがた 裸:はだか 我が儘|わがまま:わがまま 生き様:いきざま 王様:おうさま 神様:かみさま 真っ赤:まっか 背中:せなか 田舎:いなか 翼:つばさ 噂:うわさ 火花:ひばな 言霊:ことだま 横浜:よこはま 大阪:おおさか 覇者:はしゃ 現場:げんば 電波:でんぱ 文化:ぶんか 喧嘩|ケンカ:けんか 進化|真価:しんか 変化:へんか 天下:てんか 本場:ほんば 参加|賛歌:さんか 深夜:しんや 今夜:こんや 挑戦者:ちょうせんしゃ 涙:なみだ 明日:あした 柱:はしら 島:しま 今:いま 暇:ひま 北:きた 下|舌:した 刃:やいば 牙:きば 千葉:ちば 敗者:はいしゃ 言葉:ことば 空:そら 大人:おとな 側|そば:そば 星空:ほしぞら 夜空:よぞら 青空:あおぞら 歌:うた 桜:さくら 枕:まくら 戦:いくさ 草:くさ 絆:きずな 渋谷:しぶや 路地裏:ろじうら 裏:うら 稲妻:いなずま 役者:やくしゃ 名前:なまえ お前:おまえ 当たり前:あたりまえ 目の前:めのまえ 建前:たてまえ 一人前:いちにんまえ 腕前:うでまえ 駅前:えきまえ この前:このまえ 持ち前:もちまえ 風|風邪:かぜ 影|陰:かげ 壁:かべ 酒:さけ 雨:あめ 命懸け|命がけ:いのちがけ 夜明け:よあけ 賭け|掛け:かけ 負け:まけ 情け:なさけ 定め:さだめ 眺め:ながめ 目覚め:めざめ 慰め:なぐさめ 斜め:ななめ 構え:かまえ 答え:こたえ 甘え:あまえ 支え:ささえ 蓄え:たくわえ 訴え:うったえ 迎え:むかえ 考え:かんがえ 栄え:さかえ 宴:うたげ 備え:そなえ 誉れ:ほまれ 流れ:ながれ 憧れ:あこがれ 別れ:わかれ 晴れ:はれ 疲れ:つかれ 生まれ:うまれ 黄昏:たそがれ 鋼:はがね 畑:はたけ 朝焼け:あさやけ 夕焼け:ゆうやけ 汗:あせ 夢:ゆめ 爪:つめ 胸:むね 船|舟:ふね 上:うえ 末:すえ 腕:うで 筆:ふで 行方:ゆくえ 訪れ:おとずれ 群れ:むれ 手遅れ:ておくれ 声:こえ 心得:こころえ 覚え:おぼえ 骨:ほね 俺|オレ:おれ 汚れ:よごれ 己:おのれ 務め|勤め|努め:つとめ 表:おもて 初め|始め:はじめ 家:いえ 思い出|想い出:おもいで 掟:おきて 心:こころ 所|ところ:ところ この頃:このごろ 後ろ:うしろ 懐:ふところ 真心:まごころ 居所:いどころ 音:おと 外:そと 事|こと:こと 元:もと 男:おとこ 物事:ものごと 出来事:できごと 仕事:しごと 見事:みごと 一言:ひとこと 本物:ほんもの 偽物:にせもの 宝物:たからもの 獲物:えもの 化け物:ばけもの 生き物:いきもの 贈り物:おくりもの 忘れ物:わすれもの 悪者:わるもの 若者:わかもの 強者:つわもの 曲者:くせもの 子供:こども 友|共:とも 底:そこ 泥:どろ 黒:くろ 頃:ころ 地元:じもと 池袋:いけぶくろ 人:ひと 色:いろ 糸|意図:いと 人々:ひとびと 嘘:うそ 覚悟:かくご 雲|蜘蛛:くも 息子:むすこ 過去:かこ 窓:まど 笑顔:えがお 素顔:すがお 横顔:よこがお 街角:まちかど 猫:ねこ 夏:なつ 楽:らく 悪:あく 策:さく 爆発:ばくはつ 出発:しゅっぱつ 開発:かいはつ 挑発:ちょうはつ 活発:かっぱつ 一発:いっぱつ 連発:れんぱつ 反発:はんぱつ 生活:せいかつ 復活:ふっかつ 活躍:かつやく 飛躍:ひやく 契約:けいやく 予約:よやく 役|約:やく 百:ひゃく 自爆:じばく 束縛:そくばく 告白:こくはく 空白:くうはく 潔白:けっぱく 圧:あつ ラップ:らっぷ トラップ:とらっぷ ギャップ:ぎゃっぷ キャップ:きゃっぷ アップ:あっぷ ラッシュ:らっしゅ フラッシュ:ふらっしゅ クラッシュ:くらっしゅ ダッシュ:だっしゅ リアル:りある ファイナル:ふぁいなる オリジナル:おりじなる スペシャル:すぺしゃる ローカル:ろーかる クリティカル:くりてぃかる テクニカル:てくにかる アルバム:あるばむ プログラム:ぷろぐらむ ドラム:どらむ マキシマム:まきしまむ ミニマム:みにまむ 光る:ひかる 変わる:かわる 終わる:おわる 始まる:はじまる 高まる:たかまる 集まる:あつまる 止まる:とまる 決まる:きまる 捕まる:つかまる 選ぶ:えらぶ 学ぶ:まなぶ 掴む:つかむ 刻む:きざむ 悩む:なやむ 輝く:かがやく 働く:はたらく 戦う|闘う:たたかう 歌う:うたう 笑う:わらう 奪う:うばう 誓う:ちかう 向かう:むかう 願う:ねがう 叶う|敵う:かなう 立つ|経つ|発つ:たつ 勝つ:かつ 待つ:まつ 放つ:はなつ 育つ:そだつ 燃やす:もやす 壊す:こわす 探す|捜す:さがす 鳴らす:ならす 照らす:てらす 揺らす:ゆらす 目指す:めざす 飛ばす:とばす 伸ばす:のばす 蹴散らす:けちらす 孤独:こどく 約束:やくそく 迫力:はくりょく 努力:どりょく 魅力:みりょく 実力:じつりょく 全力:ぜんりょく 無力:むりょく 能力:のうりょく 暴力:ぼうりょく 権力:けんりょく 協力|強力:きょうりょく 記録:きろく 登録:とうろく 家族:かぞく 満足:まんぞく 不足:ふそく 法則:ほうそく 反則:はんそく 原則:げんそく 規則:きそく 予測:よそく 加速:かそく 最速|催促:さいそく 高速|拘束|校則:こうそく 結束:けっそく 継続:けいぞく 連続:れんぞく 接続:せつぞく 毒:どく 得|徳:とく 独特:どくとく 納得:なっとく 説得:せっとく 獲得:かくとく 習得:しゅうとく 敗北:はいぼく ヒップホップ:ひっぷほっぷ トップ:とっぷ ストップ:すとっぷ ショップ:しょっぷ ドロップ:どろっぷ ノンストップ:のんすとっぷ ロック:ろっく ブロック:ぶろっく ショック:しょっく ノック:のっく バトル:ばとる タイトル:たいとる 遊ぶ:あそぶ 飛ぶ|跳ぶ:とぶ 挑む:いどむ 望む|臨む:のぞむ 動く:うごく 届く:とどく 倒す:たおす 残す:のこす 起こす:おこす 落とす:おとす 取り戻す:とりもどす 傷:きず 地図:ちず 水:みず 合図:あいず マイク:まいく リリック:りりっく ミュージック:みゅーじっく マジック:まじっく クラシック:くらしっく テクニック:てくにっく パニック:ぱにっく トリック:とりっく ベーシック:べーしっく ライム:らいむ タイム:たいむ クライム:くらいむ プライム:ぷらいむ ライブ:らいぶ ドライブ:どらいぶ スキル:すきる スタイル:すたいる フリースタイル:ふりーすたいる スマイル:すまいる フィニッシュ:ふぃにっしゅ 走る:はしる 生きる:いきる 信じる:しんじる 感じる:かんじる 演じる:えんじる 響く:ひびく 真実:しんじつ 雫:しずく フック:ふっく バイブス:ばいぶす トラブル:とらぶる シンプル:しんぷる サンプル:さんぷる ジャングル:じゃんぐる シングル:しんぐる ストラグル:すとらぐる ハッスル:はっする マッスル:まっする プッシュ:ぷっしゅ リズム:りずむ 新宿:しんじゅく 進む:すすむ 歩む:あゆむ 貫く:つらぬく 歩く:あるく 打つ|撃つ|討つ:うつ 許す:ゆるす ステップ:すてっぷ レベル:れべる フレッシュ:ふれっしゅ 叫ぶ:さけぶ 負ける:まける 賭ける|掛ける|駆ける|懸ける|欠ける:かける 続ける:つづける 見つける:みつける 抜ける:ぬける 届ける:とどける 示す:しめす 繰り返す:くりかえす 見返す:みかえす 救う:すくう 狂う:くるう 思う|想う:おもう 背負う:せおう 誘う:さそう ビート:びーと ルート:るーと シュート:しゅーと スタート:すたーと ゲート:げーと ノート:のーと ハート:はーと アート:あーと コート:こーと スピード:すぴーど モード:もーど コード:こーど ロード:ろーど リード:りーど カード:かーど ガード:がーど ムード:むーど ワード:わーど パレード:ぱれーど グレード:ぐれーど ストリート:すとりーと エリート:えりーと コンクリート:こんくりーと アスリート:あすりーと シート:しーと プライド:ぷらいど サイド:さいど ガイド:がいど スライド:すらいど ワイド:わいど ライト:らいと ファイト:ふぁいと ナイト:ないと サイト:さいと ホワイト:ほわいと ハイライト:はいらいと スポットライト:すぽっとらいと ルーキー:るーきー ストーリー:すとーりー メロディー|メロディ:めろでぃー ハーモニー:はーもにー エネルギー:えねるぎー パーティー|パーティ:ぱーてぃー ファミリー:ふぁみりー ビクトリー:びくとりー ヒストリー:ひすとりー ミステリー:みすてりー メモリー:めもりー グローリー:ぐろーりー ハングリー:はんぐりー カテゴリー:かてごりー テリトリー:てりとりー ステージ:すてーじ メッセージ:めっせーじ イメージ:いめーじ ダメージ:だめーじ ページ:ぺーじ 勝利:しょうり 兵士:へいし 同志|同士:どうし 闘志|投資:とうし 勇気:ゆうき 陽気|容器:ようき 狂気|凶器:きょうき 正気|勝機:しょうき 空気:くうき 景気|契機:けいき チャレンジ:ちゃれんじ リベンジ:りべんじ 団地:だんち 戦士:せんし 本気:ほんき 元気:げんき 天気|転機:てんき 人気:にんき 根気:こんき 短気:たんき レジェンド:れじぇんど フレンド:ふれんど エンド:えんど トレンド:とれんど ブランド:ぶらんど バンド:ばんど グラウンド:ぐらうんど サウンド:さうんど アンダーグラウンド:あんだーぐらうんど ラウンド:らうんど バウンド:ばうんど マインド:まいんど ダイヤモンド:だいやもんど チャンス:ちゃんす センス:せんす ダンス:だんす バランス:ばらんす ニュアンス:にゅあんす パフォーマンス:ぱふぉーまんす ロマンス:ろまんす スタンス:すたんす サイレンス:さいれんす ドリーム:どりーむ チーム:ちーむ ストリーム:すとりーむ スクリーム:すくりーむ メインストリーム:めいんすとりーむ ゲーム:げーむ フレーム:ふれーむ ネーム:ねーむ ブーム:ぶーむ ルーム:るーむ ホーム:ほーむ フォーム:ふぉーむ ムーブ:むーぶ グルーヴ|グルーブ:ぐるーぶ ルール:るーる クール:くーる スクール:すくーる ゴール:ごーる ソウル:そうる コントロール:こんとろーる アピール:あぴーる スケール:すけーる 勝負:しょうぶ 王者:おうじゃ 勇者:ゆうしゃ 勝者:しょうしゃ";
+/* 読みがな → 母音の並び（a i u e o、ん=n、のばす音=R） */
+const VOW={};
+[['a','あかさたなはまやらわがざだばぱゃぁ'],['i','いきしちにひみりぎじぢびぴぃ'],['u','うくすつぬふむゆるぐずづぶぷゅぅゔ'],['e','えけせてねへめれげぜでべぺぇ'],['o','おこそとのほもよろをごぞどぼぽょぉ']].forEach(([v,cs])=>{ for(const c of cs) VOW[c]=v; });
+const kata2hira=t=>t.replace(/[ァ-ヶ]/g,c=>String.fromCharCode(c.charCodeAt(0)-0x60));
+const hira2kata=t=>t.replace(/[ぁ-ゖ]/g,c=>String.fromCharCode(c.charCodeAt(0)+0x60));
+function syms(r){
+  const out=[];
+  for(const c of r){
+    if(c==='っ') continue;
+    if(c==='ん'){ out.push('n'); continue; }
+    const p=out.length?out[out.length-1]:'';
+    if(c==='ー'){ if(p&&p!=='n'&&p!=='R') out.push('R'); continue; }
+    const v=VOW[c]; if(!v) continue;
+    if('ゃゅょぁぃぅぇぉ'.includes(c)&&out.length){ out[out.length-1]=v; continue; }
+    if(p&&((c==='う'&&(p==='o'||p==='u'))||(c==='い'&&(p==='e'||p==='i'))||(c==='お'&&p==='o'))){ out.push('R'); continue; }
+    out.push(v);
+  }
+  return out;
+}
+const keyOf=(r,n)=>{ const q=syms(r); return q.length>=n?q.slice(-n).join(''):null; };
+const KANA={a:'ア',i:'イ',u:'ウ',e:'エ',o:'オ',n:'ン',R:'ー'};
+const keyLabel=k=>k?[...k].map(c=>KANA[c]).join(''):'';
+const LEX=[], BYSURF=new Map(), GROUPS={};
+WORD_SRC.split(' ').forEach(tok=>{
+  const i=tok.indexOf(':'), alts=tok.slice(0,i).split('|'), rd=tok.slice(i+1);
+  const e={w:alts[0],alts:alts.concat([rd,hira2kata(rd)]),rd:rd,k2:keyOf(rd,2),k3:keyOf(rd,3)};
+  LEX.push(e); alts.forEach(a=>BYSURF.set(a,e));
+  if(e.k2) (GROUPS[e.k2]=GROUPS[e.k2]||[]).push(e);
+});
+const SETS=Object.keys(GROUPS).filter(k=>GROUPS[k].length>=6);
+const saidWord=(span,e)=>e.alts.some(a=>span.includes(a));
 const ROWS=5, LAG=0.6;
 const $=id=>document.getElementById(id);
 const linesEl=$('lines'), statusEl=$('status'), goBtn=$('go'), countEl=$('count');
-let words=[], lens=new Array(ROWS*3+1).fill(0), text='', isExample=true;
+let words=[], wordEnts=[], setKey='', setK3=null, lastRec=null;
+let lens=new Array(ROWS*3+1).fill(0), text='', isExample=true;
 let bpm=85, bars=2, running=false, typedMode=false;
 let lastCell=-2, lastRow=-2;
 let ctx=null, analyser=null, master=null, noiseBuf=null, timer=null, bassBus=null, revSend=null;
@@ -173,12 +234,19 @@ let pat=null;
 
 /* ---------- お題 ---------- */
 function pickWords(){
-  const set=RHYMES[Math.floor(Math.random()*RHYMES.length)];
-  const pool=set.words.slice();
-  words=[];
-  for(let i=0;i<ROWS;i++) words.push(pool.splice(Math.floor(Math.random()*pool.length),1)[0]);
-  words[ROWS-1]='';
-  $('rhymeTag').textContent=set.tag;
+  // 語数の多い韻ほど出やすく（偏りすぎないよう平方根で重み付け）
+  let tot=0; const wts=SETS.map(k=>{ const w=Math.sqrt(GROUPS[k].length); tot+=w; return w; });
+  let x=Math.random()*tot, gi=0; while(gi<SETS.length-1&&(x-=wts[gi])>0) gi++;
+  setKey=SETS[gi]; const group=GROUPS[setKey];
+  // 3音そろう言葉が十分あれば、より固い韻でそろえる
+  const anchor=group[Math.floor(Math.random()*group.length)];
+  const tight=group.filter(e=>e.k3&&e.k3===anchor.k3);
+  const useTight=tight.length>=ROWS&&Math.random()<0.6;
+  const pool=(useTight?tight:group).slice(); setK3=useTight?anchor.k3:null;
+  wordEnts=[];
+  for(let i=0;i<ROWS-1;i++) wordEnts.push(pool.splice(Math.floor(Math.random()*pool.length),1)[0]);
+  words=wordEnts.map(e=>e.w); words[ROWS-1]='';
+  $('rhymeTag').textContent=keyLabel(setK3||setKey);
 }
 function build(){
   linesEl.innerHTML='';
@@ -196,7 +264,7 @@ function showExample(){
   ex.forEach((t,i)=>{const c=$('c'+i);c.textContent=t;c.classList.add('filled');});
 }
 function clearSheet(){
-  isExample=false; $('exTag').hidden=true;
+  isExample=false; $('exTag').hidden=true; $('score').hidden=true;
   lens.fill(0); text='';
   linesEl.children[0].classList.remove('example');
   for(let i=0;i<ROWS*3;i++){const c=$('c'+i);c.textContent='';c.className='slot';}
@@ -352,7 +420,7 @@ function render(){
     const n=lens[r*3]+lens[r*3+1]+lens[r*3+2];
     const next=lens[r*3+3];
     const span=text.substr(pos,n+next); pos+=n;
-    $('w'+r).classList.toggle('hit',n>0&&span.includes(words[r]));
+    $('w'+r).classList.toggle('hit',n>0&&saidWord(span,wordEnts[r]));
   }
 }
 function startRec(){
@@ -455,6 +523,7 @@ function stop(msg){
 function finish(){
   const hits=document.querySelectorAll('.word.hit').length;
   const own=text.slice(text.length-lens[ROWS*3]);
+  if(text){ lastRec=buildRecord(); showScore(lastRec); }
   stop(text?('おつかれさま。'+(ROWS-1)+'行中 '+hits+'行でお題に着地。'+(lens[ROWS*3]?'最後に自分で出した言葉は「'+own+'」。':'最後の言葉は聞き取れませんでした。')):'声が拾えませんでした。マイクの許可と音量を確認してください。');
 }
 goBtn.addEventListener('click',()=>{ running?stop('止めました。'):start(); });
@@ -467,6 +536,13 @@ function loadRecords(){ try{ return JSON.parse(localStorage.getItem(KEY))||[]; }
 function storeRecords(a){ try{ localStorage.setItem(KEY,JSON.stringify(a)); return true; }catch(_){ return false; } }
 function saveRecord(){
   if(running||!text) return;
+  const recd=buildRecord();
+  const a=loadRecords();
+  a.unshift(recd);
+  if(!storeRecords(a.slice(0,100))) statusEl.textContent+=' （このブラウザでは記録を保存できませんでした）';
+  text=''; lastRec=recd; showScore(recd); renderLog(a);
+}
+function buildRecord(){
   const rows=[]; let pos=0;
   for(let r=0;r<ROWS;r++){
     const n=lens[r*3]+lens[r*3+1]+lens[r*3+2];
@@ -474,11 +550,149 @@ function saveRecord(){
     else rows.push({text:text.substr(pos,n),word:words[r],hit:$('w'+r).classList.contains('hit')});
     pos+=n;
   }
-  const a=loadRecords();
-  a.unshift({at:Date.now(),bpm:bpm,bars:bars,tag:$('rhymeTag').textContent,rows:rows});
-  if(!storeRecords(a.slice(0,100))) statusEl.textContent+=' （このブラウザでは記録を保存できませんでした）';
-  text=''; renderLog(a);
+  return {at:Date.now(),bpm:bpm,bars:bars,tag:$('rhymeTag').textContent,rows:rows,score:calcScore()};
 }
+
+/* ---------- 採点 ---------- */
+// 最後に自分で出した言葉の読みを推定する（辞書にある言葉か、かな書きなら判定できる）
+function readOwn(full){
+  for(let n=Math.min(9,full.length);n>=1;n--){
+    const e=BYSURF.get(full.slice(-n)); if(e) return {word:e.w,rd:e.rd};
+  }
+  const m=full.match(/[ぁ-ゖァ-ヶー]{2,}$/);
+  if(m){ const rd=kata2hira(m[0]); if(syms(rd).length>=2) return {word:m[0],rd:rd}; }
+  return null;
+}
+function calcScore(){
+  const cell=[]; let pos=0;
+  for(let i=0;i<lens.length;i++){ cell.push(text.substr(pos,lens[i])); pos+=lens[i]; }
+  const own=cell[ROWS*3], rowsT=[];
+  for(let r=0;r<ROWS;r++) rowsT.push(cell[r*3]+cell[r*3+1]+cell[r*3+2]);
+  // ライム 40：お題への着地 7点×4、自分の韻 12点
+  let rhyme=0, flow=0, hits=0;
+  for(let r=0;r<ROWS-1;r++){
+    const inRow=saidWord(rowsT[r],wordEnts[r]), late=!inRow&&saidWord(rowsT[r]+cell[r*3+3],wordEnts[r]);
+    if(inRow||late){ rhyme+=7; hits++; }
+    if(inRow) flow+=2;                       // 小節の中で言い切れた
+  }
+  const ownInfo={word:own,state:'none'};
+  if(own){
+    const rd=readOwn(own)||readOwn(rowsT[ROWS-1]+own);
+    if(!rd){ ownInfo.state='unknown'; rhyme+=4; }
+    else{
+      const k2=keyOf(rd.rd,2), k3=keyOf(rd.rd,3);
+      if(wordEnts.some(e=>e.rd===rd.rd)){ ownInfo.state='same'; }
+      else if(k2===setKey){
+        const tight=k3&&wordEnts.some(e=>e.k3===k3);
+        ownInfo.state=tight?'tight':'rhyme'; rhyme+=tight?12:8;
+      }else ownInfo.state='miss';
+    }
+    flow+=2;
+  }
+  // フロウ 30：3つの空欄を埋めたか、言葉の配分
+  for(let r=0;r<ROWS;r++){
+    const c=[cell[r*3].length,cell[r*3+1].length,cell[r*3+2].length], f=c.filter(x=>x>0).length;
+    flow+=f;
+    if(f===3&&Math.max(...c)<=Math.min(...c)*3) flow+=1;
+  }
+  // 語彙 20：言葉数、言葉の幅、つなぎ言葉や使い回しの少なさ
+  const all=rowsT.join('')+own, said=rowsT.filter(t=>t.length>0).length;
+  const target=bars===1?6:9, avg=all.length/ROWS;
+  let vocab=Math.min(1,avg/target)*10;
+  if(all.length){
+    const uniq=new Set(all).size/all.length;
+    vocab+=Math.max(0,Math.min(1,(uniq-0.3)/0.3))*6;
+    let clean=4;
+    ['えー','えっと','あのー','なんか','えーと'].forEach(w=>{ if(all.includes(w)) clean-=2; });
+    if(new Set(rowsT.filter(t=>t)).size<said) clean-=2;
+    vocab+=Math.max(0,clean);
+  }
+  // 完走 10：黙らずに最後まで
+  const fin=said*2;
+  const sc={rhyme:Math.round(rhyme),flow:Math.min(30,Math.round(flow)),vocab:Math.round(vocab),finish:fin,hits:hits,own:ownInfo};
+  sc.total=sc.rhyme+sc.flow+sc.vocab+sc.finish;
+  sc.rank=sc.total>=90?'優勝候補':sc.total>=75?'本戦レベル':sc.total>=55?'予選突破':sc.total>=35?'サイファー常連':'入門';
+  return sc;
+}
+const OWN_MSG={tight:'3音そろった固い韻',rhyme:'韻を踏めた',miss:'韻は外れた',same:'お題と同じ言葉',unknown:'読みを判定できず（部分点）',none:'出せなかった'};
+function showScore(recd){
+  const sc=recd.score; if(!sc) return;
+  $('scTotal').textContent=sc.total; $('scRank').textContent=sc.rank;
+  [['Rhyme',sc.rhyme,40],['Flow',sc.flow,30],['Vocab',sc.vocab,20],['Finish',sc.finish,10]].forEach(([k,v,m])=>{
+    $('sc'+k).textContent=v+'/'+m; $('bar'+k).style.width=(v/m*100)+'%';
+  });
+  $('scOwn').textContent='最後の一語：'+(sc.own.state==='none'?'':'「'+sc.own.word+'」 ')+OWN_MSG[sc.own.state];
+  $('score').hidden=false;
+}
+
+/* ---------- 共有 ---------- */
+const SITE='https://shunrei2000-ux.github.io/in-dojo/';
+function drawCard(recd){
+  const W=1080,H=1350,c=document.createElement('canvas'); c.width=W; c.height=H;
+  const x=c.getContext('2d'), sc=recd.score;
+  const DISP='"Dela Gothic One","Hiragino Kaku Gothic StdN","Yu Gothic",sans-serif', LAT='"Bebas Neue","Arial Narrow",Impact,sans-serif', BODY='"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif';
+  x.fillStyle='#0b0b0d'; x.fillRect(0,0,W,H);
+  const g=x.createRadialGradient(W/2,H+120,60,W/2,H+120,900); g.addColorStop(0,'rgba(255,90,20,.5)'); g.addColorStop(1,'rgba(255,90,20,0)');
+  x.fillStyle=g; x.fillRect(0,0,W,H);
+  x.fillStyle='#9a978f'; x.font='34px '+LAT; x.textBaseline='alphabetic'; x.fillText('R H Y M E   D O J O',70,96);
+  x.font='104px '+DISP; x.fillStyle='#ff3b2f'; x.fillText('韻道場',77,213); x.fillStyle='#f1efe9'; x.fillText('韻道場',70,206);
+  x.save(); x.beginPath(); x.rect(70,240,W-140,16); x.clip();
+  for(let i=-40;i<W;i+=52){ x.fillStyle='#ff9a1f'; x.beginPath(); x.moveTo(i,256); x.lineTo(i+26,256); x.lineTo(i+42,240); x.lineTo(i+16,240); x.fill(); }
+  x.restore();
+  let y=300;
+  if(sc){
+    x.textAlign='right'; x.fillStyle='#ff9a1f'; x.font='250px '+LAT; x.fillText(String(sc.total),W-150,210);
+    x.font='44px '+LAT; x.fillStyle='#9a978f'; x.fillText('/100',W-70,210); x.textAlign='left';
+    x.font='60px '+DISP; x.fillStyle='#ff9a1f'; x.fillText(sc.rank,70,372);
+    y=430;
+    [['ライム',sc.rhyme,40],['フロウ',sc.flow,30],['語彙',sc.vocab,20],['完走',sc.finish,10]].forEach(([k,v,m])=>{
+      x.font='700 34px '+BODY; x.fillStyle='#f1efe9'; x.fillText(k,70,y+30);
+      x.fillStyle='#34343a'; x.fillRect(220,y+6,620,26); x.fillStyle='#ff9a1f'; x.fillRect(220,y+6,620*v/m,26);
+      x.font='40px '+LAT; x.fillStyle='#9a978f'; x.fillText(v+' / '+m,870,y+34);
+      y+=58;
+    });
+    y+=26;
+  }
+  x.fillStyle='#34343a'; x.fillRect(70,y,W-140,2); y+=28;
+  const rowH=Math.min(118,(H-150-y)/recd.rows.length);
+  recd.rows.forEach(r=>{
+    const wd=r.word||(r.free?'？':''), line=r.text||'…';
+    x.font='46px '+DISP; const ww=x.measureText(wd).width;
+    let fs=44; x.font='700 '+fs+'px '+BODY;
+    while(x.measureText(line).width>W-140-ww-40&&fs>22){ fs-=2; x.font='700 '+fs+'px '+BODY; }
+    x.fillStyle='#f1efe9'; x.fillText(line,70,y+rowH*0.62);
+    x.font='46px '+DISP; x.fillStyle=r.free?'#ff9a1f':(r.hit?'#e9e2c8':'#ff3b2f'); x.textAlign='right'; x.fillText(wd,W-70,y+rowH*0.62); x.textAlign='left';
+    x.fillStyle='#24242a'; x.fillRect(70,y+rowH-2,W-140,2);
+    y+=rowH;
+  });
+  x.font='36px '+LAT; x.fillStyle='#9a978f'; x.fillText('BPM '+recd.bpm,70,H-64);
+  x.font='700 30px '+BODY; x.fillText('韻 '+recd.tag,70+x.measureText('BPM '+recd.bpm+'   ').width+40,H-66);
+  x.textAlign='right'; x.font='30px '+LAT; x.fillText('SHUNREI2000-UX.GITHUB.IO/IN-DOJO',W-70,H-64); x.textAlign='left';
+  return c;
+}
+function shareRec(recd){
+  if(!recd) return;
+  const txt=(recd.score?'韻道場で'+recd.score.total+'点（'+recd.score.rank+'）':'韻道場で一本')+' BPM '+recd.bpm+' #韻道場';
+  let url='', file=null;
+  try{
+    url=drawCard(recd).toDataURL('image/png');
+    const bin=atob(url.split(',')[1]), u8=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i);
+    file=new File([u8],'in-dojo.png',{type:'image/png'});
+  }catch(_){}
+  try{
+    if(file&&navigator.canShare&&navigator.canShare({files:[file]})){ navigator.share({files:[file],text:txt+' '+SITE}).catch(()=>{}); return; }
+    if(NATIVE&&CAP.Plugins&&CAP.Plugins.Share){ CAP.Plugins.Share.share({title:'韻道場',text:txt,url:SITE}).catch(()=>{}); return; }
+    if(navigator.share){ navigator.share({title:'韻道場',text:txt,url:SITE}).catch(()=>{}); return; }
+  }catch(_){}
+  // 共有メニューが使えない環境：画像と文を表示して、保存とコピーを任せる
+  $('cardImg').src=url; $('cardTxt').value=txt+' '+SITE; $('card').hidden=false;
+}
+$('shareNow').addEventListener('click',()=>shareRec(lastRec));
+$('cardClose').addEventListener('click',()=>{ $('card').hidden=true; });
+$('cardCopy').addEventListener('click',()=>{
+  const t=$('cardTxt'); t.select();
+  (navigator.clipboard?navigator.clipboard.writeText(t.value):Promise.reject()).then(()=>{ $('cardCopy').textContent='コピーしました'; },()=>{ $('cardCopy').textContent='文を選択しました'; });
+});
 function renderLog(a){
   a=a||loadRecords();
   const list=$('logList'); list.innerHTML=''; $('logEmpty').hidden=a.length>0;
@@ -489,7 +703,7 @@ function renderLog(a){
     const mk=(c,t)=>{const s=document.createElement('span');s.className=c;s.textContent=t;sum.appendChild(s);};
     mk('when',(d.getMonth()+1)+'/'+d.getDate()+' '+pad(d.getHours())+':'+pad(d.getMinutes()));
     mk('meta','BPM '+rec.bpm+' ・ 韻 '+rec.tag);
-    mk('score','着地 '+rec.rows.filter(r=>r.hit).length+'/'+rec.rows.filter(r=>!r.free).length);
+    mk('score',rec.score?rec.score.total+'点 '+rec.score.rank:'着地 '+rec.rows.filter(r=>r.hit).length+'/'+rec.rows.filter(r=>!r.free).length);
     det.appendChild(sum);
     const ol=document.createElement('ol');
     rec.rows.forEach(r=>{
@@ -500,7 +714,9 @@ function renderLog(a){
     det.appendChild(ol);
     const del=document.createElement('button'); del.type='button'; del.className='del'; del.textContent='この記録を消す';
     del.addEventListener('click',()=>{ const b=loadRecords().filter(x=>x.at!==rec.at); storeRecords(b); renderLog(b); });
-    det.appendChild(del); list.appendChild(det);
+    const sh=document.createElement('button'); sh.type='button'; sh.className='del'; sh.textContent='共有する'; sh.style.marginRight='0';
+    sh.addEventListener('click',()=>shareRec(rec));
+    det.appendChild(sh); det.appendChild(del); list.appendChild(det);
   });
 }
 
